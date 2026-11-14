@@ -1,34 +1,25 @@
-# veicoliplugin
+# Veicoli plugin (Minecraft)
 
-Plugin FiveM per gestione veicoli, garage player e HUD in auto.
+Plugin **Paper/Spigot Java** per server Minecraft. I file Lua/HTML/FiveM presenti nella cronologia del repository sono un tentativo precedente errato e non fanno parte del plugin Minecraft: il server carica il JAR creato da Maven.
 
-Funzioni principali:
-- `/adminveicoli give [nick] [nome veicolo]`
-- `/adminveicoli remove [nick] [nome veicolo]`
-- `/garage` per aprire il garage personale
-- `/garage [nick]` per aprire il garage di un altro player come staff
-- HUD automatico in auto con:
-  - Velocità
-  - Carburante
-  - Marcia
-- Cambio marcia con `F`
-- Limiti di marcia:
-  - I: 0-15 km/h
-  - II: 16-30 km/h
-  - III: 31-55 km/h
-  - IV: 56-75 km/h
-  - V: 76-110 km/h
+## Requisiti
+- Minecraft/Paper 1.21.4
+- Java 21
+- Maven 3.9+
+- Resource pack con il modello dell'AMG Cross associato all'oggetto `LEATHER_HORSE_ARMOR` con CustomModelData `22`.
 
-## Installazione
-1. Copia la cartella `veicoliplugin` dentro `resources/`
-2. Avvia il resource nel server.cfg:
-   `ensure veicoliplugin`
-3. Riapri il server.
+## Compilazione e installazione
+1. Compila con `mvn package`.
+2. Copia `target/veicoliplugin-1.0.0.jar` nella cartella `plugins/` del server.
+3. Avvia il server. Verrà generato `plugins/VeicoliPlugin/config.yml`.
+4. Assegna agli staff il permesso `veicoliplugin.admin` (è `op` per default).
 
 ## Comandi
-- `adminveicoli give [nick] [veicolo]`
-- `adminveicoli remove [nick] [veicolo]`
-- `garage`
+- `/adminveicoli give <nick> <nome veicolo>` — assegna un veicolo, per esempio `/adminveicoli give Steve AMG Cross`.
+- `/adminveicoli remove <nick> <nome veicolo>` — rimuove quel veicolo dal garage.
+- `/garage` — apre il tuo garage.
+- `/garage <nick>` — lo staff apre il garage di un giocatore; clic sinistro visualizza, clic destro rimuove.
 
-## Note
-Il plugin usa `SetResourceKvp` per salvare i veicoli del garage in modo persistente e non dipende da framework esterni.
+Nel garage personale, clic sinistro su un veicolo lo fa apparire e ci fa salire. La marcia cambia con **F** (evento cambio mano), da 1 a 5. L'HUD è mostrato nella action bar con velocità, carburante e marcia. I limiti delle marce sono 15, 30, 55, 75 e 110 km/h.
+
+Il veicolo è implementato come cavallo sellato con bardatura personalizzata: il resource pack è necessario per renderlo come l'AMG Cross. Le ruote e il loro modello possono essere aggiunti quando sarà disponibile lo screenshot promesso.

@@ -1,0 +1,4 @@
+vehicles:
+  amg-cross:
+    custom-model-data: 22
+# Il garage viene salvato automaticamente per UUID giocatore.
