@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Veicoli Garage</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="garage" class="hidden">
+        <div class="garage-panel">
+            <div class="garage-header">
+                <h2>Garage</h2>
+                <button id="closeGarage">X</button>
+            </div>
+            <div id="garage-list" class="garage-list"></div>
+        </div>
+    </div>
+
+    <div id="vehicle-hud" class="hidden">
+        <div class="hud-line">
+            <span class="label">Velocità:</span>
+            <span id="speed-value">0</span>
+            <span class="unit">km/h</span>
+        </div>
+        <div class="hud-line">
+            <span class="label">Carburante:</span>
+            <span id="fuel-value">0</span>
+            <span class="unit">%</span>
+        </div>
+        <div class="hud-line">
+            <span class="label">Marcia:</span>
+            <span id="gear-value">1</span>
+        </div>
+    </div>
+
+    <script src="nui://game/ui/jquery.js" type="text/javascript"></script>
+    <script src="app.js"></script>
+</body>
+</html>
