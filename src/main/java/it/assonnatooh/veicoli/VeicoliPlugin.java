@@ -153,7 +153,9 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
         GarageHolder holder = new GarageHolder(owner);
         Inventory inventory = Bukkit.createInventory(holder, size, ChatColor.DARK_GRAY + "Garage: " + ownerName);
         holder.inventory = inventory;
-        for (int i = 0; i < vehicles.size() && i < size; i++) inventory.setItem(i, createGarageItem(vehicles.get(i)));
+        for (int i = 0; i < vehicles.size() && i < size; i++) {
+            inventory.setItem(i, createGarageItem(vehicles.get(i)));
+        }
         if (vehicles.isEmpty()) {
             ItemStack empty = new ItemStack(Material.BARRIER);
             ItemMeta meta = empty.getItemMeta();
@@ -168,9 +170,12 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
         ItemStack item = new ItemStack(Material.LEATHER_HORSE_ARMOR);
         ItemMeta meta = item.getItemMeta();
         meta.setDisplayName(ChatColor.GOLD + vehicleName);
-        meta.setLore(List.of(ChatColor.GRAY + "Click sinistro: fai apparire il veicolo",
-                ChatColor.GRAY + "Lo staff può rimuoverlo con click destro"));
-        meta.setCustomModelData(getConfig().getInt("vehicles." + vehicleConfigKey(vehicleName) + ".body-custom-model-data", 22));
+        meta.setLore(List.of(
+                ChatColor.GRAY + "Click sinistro: fai apparire il veicolo",
+                ChatColor.GRAY + "Lo staff può rimuoverlo con click destro"
+        ));
+        meta.setCustomModelData(getConfig().getInt(
+                "vehicles." + vehicleConfigKey(vehicleName) + ".body-custom-model-data", 22));
         item.setItemMeta(meta);
         return item;
     }
@@ -231,170 +236,4 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
             spawned.setOwner(player);
             spawned.setInvulnerable(true);
             spawned.setPersistent(true);
-            spawned.setCustomName(ChatColor.GOLD + vehicleName);
-            spawned.setCustomNameVisible(false);
-            spawned.getPersistentDataContainer().set(vehicleKey, PersistentDataType.STRING, vehicleName);
-            spawned.getPersistentDataContainer().set(fuelKey, PersistentDataType.INTEGER, 100);
-            spawned.getPersistentDataContainer().set(gearKey, PersistentDataType.INTEGER, 1);
-            if (spawned.getAttribute(Attribute.MOVEMENT_SPEED) != null) {
-                spawned.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(0.30);
-            }
-            HorseInventory inventory = spawned.getInventory();
-            inventory.setSaddle(new ItemStack(Material.SADDLE));
-            ItemStack armor = new ItemStack(Material.LEATHER_HORSE_ARMOR);
-            ItemMeta meta = armor.getItemMeta();
-            meta.setCustomModelData(getConfig().getInt("vehicles." + vehicleConfigKey(vehicleName) + ".body-custom-model-data", 22));
-            meta.setDisplayName(ChatColor.GOLD + vehicleName);
-            armor.setItemMeta(meta);
-            inventory.setArmor(armor);
-        });
-        createWheelDisplays(horse);
-        horse.addPassenger(player);
-        player.closeInventory();
-        player.sendMessage(ChatColor.GREEN + vehicleName + " è pronto. Premi F per cambiare marcia.");
-    }
-
-    private void createWheelDisplays(Horse horse) {
-        removeWheelDisplays(horse.getUniqueId());
-        int wheelCmd = getConfig().getInt("vehicles." + vehicleConfigKey(
-                horse.getPersistentDataContainer().getOrDefault(vehicleKey, PersistentDataType.STRING, "AMG Cross"))
-                + ".wheel-custom-model-data", 240);
-        ItemStack wheelItem = new ItemStack(Material.LEATHER_HORSE_ARMOR);
-        ItemMeta meta = wheelItem.getItemMeta();
-        meta.setCustomModelData(wheelCmd);
-        meta.setDisplayName(ChatColor.GOLD + "Ruota veicolo");
-        wheelItem.setItemMeta(meta);
-
-        double offset = getConfig().getDouble("vehicles.amg-cross.wheel-side-offset", 0.42);
-        List<UUID> wheels = new ArrayList<>(2);
-        for (int side : new int[]{-1, 1}) {
-            ItemDisplay display = horse.getWorld().spawn(horse.getLocation(), ItemDisplay.class, spawned -> {
-                spawned.setItemStack(wheelItem);
-                spawned.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
-                spawned.setGravity(false);
-                spawned.setInvulnerable(true);
-                spawned.setPersistent(false);
-                spawned.getPersistentDataContainer().set(wheelKey, PersistentDataType.BYTE, (byte) 1);
-                spawned.getPersistentDataContainer().set(wheelParentKey, PersistentDataType.STRING, horse.getUniqueId().toString());
-            });
-            wheels.add(display.getUniqueId());
-        }
-        vehicleWheels.put(horse.getUniqueId(), wheels);
-        updateWheelPositions(horse, offset);
-    }
-
-    private void updateWheelPositions(Horse horse, double offset) {
-        List<UUID> wheels = vehicleWheels.get(horse.getUniqueId());
-        if (wheels == null || wheels.size() != 2) {
-            createWheelDisplays(horse);
-            return;
-        }
-        float yaw = horse.getLocation().getYaw();
-        double radians = Math.toRadians(yaw);
-        double rightX = Math.cos(radians);
-        double rightZ = -Math.sin(radians);
-        double[] sides = {-1.0, 1.0};
-        for (int index = 0; index < 2; index++) {
-            Entity wheel = Bukkit.getEntity(wheels.get(index));
-            if (!(wheel instanceof ItemDisplay display) || !display.isValid()) {
-                createWheelDisplays(horse);
-                return;
-            }
-            double side = sides[index] * offset;
-            display.teleport(horse.getLocation().clone().add(rightX * side, -0.55, rightZ * side));
-        }
-    }
-
-    private void removeWheelDisplays(UUID horseId) {
-        List<UUID> wheels = vehicleWheels.remove(horseId);
-        if (wheels == null) return;
-        for (UUID wheelId : wheels) {
-            Entity wheel = Bukkit.getEntity(wheelId);
-            if (wheel != null) wheel.remove();
-        }
-    }
-
-    private void removeVehicleAndWheels(Horse horse) {
-        removeWheelDisplays(horse.getUniqueId());
-        horse.remove();
-    }
-
-    private boolean isPluginVehicle(Entity entity) {
-        return entity instanceof Horse horse && horse.getPersistentDataContainer().has(vehicleKey, PersistentDataType.STRING);
-    }
-
-    @EventHandler
-    public void onGearKey(PlayerSwapHandItemsEvent event) {
-        Entity vehicle = event.getPlayer().getVehicle();
-        if (!isPluginVehicle(vehicle)) return;
-        event.setCancelled(true);
-        Horse horse = (Horse) vehicle;
-        int gear = horse.getPersistentDataContainer().getOrDefault(gearKey, PersistentDataType.INTEGER, 1);
-        gear = gear >= 5 ? 1 : gear + 1;
-        horse.getPersistentDataContainer().set(gearKey, PersistentDataType.INTEGER, gear);
-        event.getPlayer().sendActionBar(hudText(horse, gear));
-    }
-
-    @EventHandler
-    public void onQuit(PlayerQuitEvent event) {
-        Entity vehicle = event.getPlayer().getVehicle();
-        if (isPluginVehicle(vehicle)) removeVehicleAndWheels((Horse) vehicle);
-    }
-
-    private void startVehicleTask() {
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                for (Player player : Bukkit.getOnlinePlayers()) {
-                    Entity entity = player.getVehicle();
-                    if (!isPluginVehicle(entity)) continue;
-                    Horse horse = (Horse) entity;
-                    int gear = horse.getPersistentDataContainer().getOrDefault(gearKey, PersistentDataType.INTEGER, 1);
-                    int fuel = horse.getPersistentDataContainer().getOrDefault(fuelKey, PersistentDataType.INTEGER, 100);
-                    updateWheelPositions(horse, getConfig().getDouble("vehicles.amg-cross.wheel-side-offset", 0.42));
-                    Vector velocity = horse.getVelocity();
-                    double speedKmh = velocity.clone().setY(0).length() * 72.0;
-                    double maxKmh = GEAR_LIMITS[Math.max(0, Math.min(4, gear - 1))];
-                    if (speedKmh > maxKmh) {
-                        Vector horizontal = velocity.clone().setY(0).normalize().multiply(maxKmh / 72.0);
-                        horse.setVelocity(new Vector(horizontal.getX(), velocity.getY(), horizontal.getZ()));
-                        speedKmh = maxKmh;
-                    }
-                    if (fuel > 0 && horse.getTicksLived() % 1200 == 0) {
-                        fuel--;
-                        horse.getPersistentDataContainer().set(fuelKey, PersistentDataType.INTEGER, fuel);
-                    }
-                    if (fuel <= 0) {
-                        Vector stopped = horse.getVelocity();
-                        horse.setVelocity(new Vector(stopped.getX() * 0.6, stopped.getY(), stopped.getZ() * 0.6));
-                    }
-                    player.sendActionBar(ChatColor.WHITE + "Velocità: " + Math.round(speedKmh) + " km/h"
-                            + ChatColor.GRAY + " | " + ChatColor.WHITE + "Carburante: " + fuel + "%"
-                            + ChatColor.GRAY + " | " + ChatColor.WHITE + "Marcia: " + gear);
-                }
-            }
-        }.runTaskTimer(this, 1L, 1L);
-    }
-
-    private String hudText(Horse horse, int gear) {
-        int fuel = horse.getPersistentDataContainer().getOrDefault(fuelKey, PersistentDataType.INTEGER, 100);
-        int speed = (int) Math.round(horse.getVelocity().clone().setY(0).length() * 72.0);
-        return ChatColor.WHITE + "Velocità: " + speed + " km/h | Carburante: " + fuel + "% | Marcia: " + gear;
-    }
-
-    private String vehicleConfigKey(String vehicleName) {
-        return vehicleName.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
-    }
-
-    private void openGarageForUuid(Player viewer, UUID owner) {
-        String ownerName = Bukkit.getOfflinePlayer(owner).getName();
-        openGarage(viewer, owner, ownerName == null ? "Giocatore" : ownerName);
-    }
-
-    private static final class GarageHolder implements InventoryHolder {
-        private final UUID owner;
-        private Inventory inventory;
-        private GarageHolder(UUID owner) { this.owner = owner; }
-        @Override public Inventory getInventory() { return inventory; }
-    }
-}
+            spawned.setCustomName(ChatColor*
