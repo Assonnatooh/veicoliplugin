@@ -1,6 +1,6 @@
 # Veicoli plugin (Minecraft)
 
-Plugin **Paper/Spigot Java** per Minecraft/Paper 1.21.4 (Java 21).
+Plugin **Paper per Minecraft 1.21.8**, compilato con Java 21.
 
 ## Build e installazione
 1. Esegui `mvn package` con Java 21 e Maven 3.9+.
@@ -17,6 +17,4 @@ Plugin **Paper/Spigot Java** per Minecraft/Paper 1.21.4 (Java 21).
 ## AMG Cross e resource pack
 Il veicolo è un cavallo sellato con una bardatura di cuoio personalizzata. L'AMG Cross usa `LEATHER_HORSE_ARMOR` con CustomModelData **22** per la carrozzeria. Le **due ruote** sono due entità `ItemDisplay` separate, ciascuna con `LEATHER_HORSE_ARMOR` e CustomModelData **240**; il plugin le mantiene ai lati del veicolo mentre si muove.
 
-Il resource pack deve contenere i modelli corrispondenti ai CMD 22 e 240. La posizione laterale delle ruote si regola in `config.yml` con `vehicles.amg-cross.wheel-side-offset` (default `0.42` blocchi). La posizione verticale è impostata a `-0.55` rispetto al centro del cavallo e può richiedere regolazione in base al modello del resource pack.
-
-La action bar mostra velocità, carburante e marcia. Premi **F** (cambio mano) per passare alla marcia successiva; i limiti impostati sono 15, 30, 55, 75 e 110 km/h.
+Il resource pack deve fornire i modelli corrispondenti ai CMD 22 e 240. La distanza laterale delle ruote si regola in `config.yml` con `vehicles.amg-cross.wheel-side-offset` (default `0.42` blocchi); la posizione verticale può richiedere regolazione in base al modello del resource pack.

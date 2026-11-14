@@ -1,7 +1,7 @@
 name: VeicoliPlugin
 version: 1.0.0
 main: it.assonnatooh.veicoli.VeicoliPlugin
-api-version: '1.21'
+api-version: '1.21.8'
 author: Assonnatooh
 description: Garage e veicoli personalizzati per server Minecraft
 commands:
