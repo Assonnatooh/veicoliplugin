@@ -40,8 +40,10 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
     private NamespacedKey fuelKey;
     private NamespacedKey gearKey;
     private NamespacedKey wheelKey;
+    private NamespacedKey bodyKey;
     private NamespacedKey wheelParentKey;
     private final Map<UUID, List<UUID>> vehicleWheels = new HashMap<>();
+    private final Map<UUID, UUID> vehicleBodies = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -50,6 +52,7 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
         fuelKey = new NamespacedKey(this, "fuel");
         gearKey = new NamespacedKey(this, "gear");
         wheelKey = new NamespacedKey(this, "vehicle_wheel");
+        bodyKey = new NamespacedKey(this, "vehicle_body");
         wheelParentKey = new NamespacedKey(this, "wheel_parent");
         Bukkit.getPluginManager().registerEvents(this, this);
         startVehicleTask();
@@ -58,6 +61,12 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
+        for (UUID bodyId : vehicleBodies.values()) {
+            Entity body = Bukkit.getEntity(bodyId);
+            if (body != null) body.remove();
+        }
+        vehicleBodies.clear();
+
         for (List<UUID> wheels : vehicleWheels.values()) {
             for (UUID wheelId : wheels) {
                 Entity wheel = Bukkit.getEntity(wheelId);
@@ -230,14 +239,15 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
     private void spawnVehicle(Player player, String vehicleName) {
         Entity current = player.getVehicle();
         if (isPluginVehicle(current)) removeVehicleAndWheels((Horse) current);
+
         Horse horse = player.getWorld().spawn(player.getLocation(), Horse.class, spawned -> {
             spawned.setAdult();
             spawned.setTamed(true);
             spawned.setOwner(player);
             spawned.setInvulnerable(true);
             spawned.setPersistent(true);
-            // Il cavallo è solo un supporto invisibile per guidare il veicolo.
             spawned.setInvisible(true);
+            spawned.setSilent(true);
             spawned.setCustomName(ChatColor.GOLD + vehicleName);
             spawned.setCustomNameVisible(false);
             spawned.getPersistentDataContainer().set(vehicleKey, PersistentDataType.STRING, vehicleName);
@@ -248,18 +258,51 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
             }
             HorseInventory inventory = spawned.getInventory();
             inventory.setSaddle(new ItemStack(Material.SADDLE));
-            ItemStack armor = new ItemStack(Material.LEATHER_HORSE_ARMOR);
-            ItemMeta meta = armor.getItemMeta();
-            meta.setCustomModelData(getConfig().getInt(
-                    "vehicles." + vehicleConfigKey(vehicleName) + ".body-custom-model-data", 20));
-            meta.setDisplayName(ChatColor.GOLD + vehicleName);
-            armor.setItemMeta(meta);
-            inventory.setArmor(armor);
+            inventory.setArmor(null);
         });
+
+        createBodyDisplay(horse, vehicleName);
         createWheelDisplays(horse);
         horse.addPassenger(player);
         player.closeInventory();
         player.sendMessage(ChatColor.GREEN + vehicleName + " è pronto. Premi F per cambiare marcia.");
+    }
+
+    private void createBodyDisplay(Horse horse, String vehicleName) {
+        removeBodyDisplay(horse.getUniqueId());
+        int bodyCmd = getConfig().getInt(
+                "vehicles." + vehicleConfigKey(vehicleName) + ".body-custom-model-data", 20);
+        ItemStack bodyItem = new ItemStack(Material.LEATHER_HORSE_ARMOR);
+        ItemMeta meta = bodyItem.getItemMeta();
+        meta.setCustomModelData(bodyCmd);
+        meta.setDisplayName(ChatColor.GOLD + vehicleName);
+        bodyItem.setItemMeta(meta);
+
+        ItemDisplay display = horse.getWorld().spawn(horse.getLocation(), ItemDisplay.class, spawned -> {
+            spawned.setItemStack(bodyItem);
+            spawned.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
+            spawned.setGravity(false);
+            spawned.setInvulnerable(true);
+            spawned.setPersistent(false);
+            spawned.getPersistentDataContainer().set(bodyKey, PersistentDataType.STRING, horse.getUniqueId().toString());
+        });
+        vehicleBodies.put(horse.getUniqueId(), display.getUniqueId());
+        updateBodyDisplayPosition(horse, display);
+    }
+
+    private void updateBodyDisplayPosition(Horse horse, ItemDisplay display) {
+        float yaw = horse.getLocation().getYaw();
+        double radians = Math.toRadians(yaw);
+        double forwardX = -Math.sin(radians);
+        double forwardZ = Math.cos(radians);
+        display.teleport(horse.getLocation().clone().add(forwardX * 0.05, 0.1, forwardZ * 0.05));
+    }
+
+    private void removeBodyDisplay(UUID horseId) {
+        UUID bodyId = vehicleBodies.remove(horseId);
+        if (bodyId == null) return;
+        Entity body = Bukkit.getEntity(bodyId);
+        if (body != null) body.remove();
     }
 
     private void createWheelDisplays(Horse horse) {
@@ -299,6 +342,15 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
             createWheelDisplays(horse);
             return;
         }
+
+        UUID bodyId = vehicleBodies.get(horse.getUniqueId());
+        if (bodyId != null) {
+            Entity body = Bukkit.getEntity(bodyId);
+            if (body instanceof ItemDisplay bodyDisplay) {
+                updateBodyDisplayPosition(horse, bodyDisplay);
+            }
+        }
+
         float yaw = horse.getLocation().getYaw();
         double radians = Math.toRadians(yaw);
         double rightX = Math.cos(radians);
@@ -326,6 +378,7 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
 
     private void removeVehicleAndWheels(Horse horse) {
         removeWheelDisplays(horse.getUniqueId());
+        removeBodyDisplay(horse.getUniqueId());
         horse.remove();
     }
 
