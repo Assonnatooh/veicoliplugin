@@ -9,6 +9,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Horse;
+import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -26,6 +27,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -33,12 +35,13 @@ import java.util.Map;
 import java.util.UUID;
 
 public final class VeicoliPlugin extends JavaPlugin implements Listener {
-    private static final String DEFAULT_VEHICLE = "AMG Cross";
     private static final int[] GEAR_LIMITS = {15, 30, 55, 75, 110};
     private NamespacedKey vehicleKey;
     private NamespacedKey fuelKey;
     private NamespacedKey gearKey;
-    private final Map<UUID, UUID> openGarageOwners = new HashMap<>();
+    private NamespacedKey wheelKey;
+    private NamespacedKey wheelParentKey;
+    private final Map<UUID, List<UUID>> vehicleWheels = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -46,19 +49,28 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
         vehicleKey = new NamespacedKey(this, "vehicle");
         fuelKey = new NamespacedKey(this, "fuel");
         gearKey = new NamespacedKey(this, "gear");
+        wheelKey = new NamespacedKey(this, "vehicle_wheel");
+        wheelParentKey = new NamespacedKey(this, "wheel_parent");
         Bukkit.getPluginManager().registerEvents(this, this);
         startVehicleTask();
         getLogger().info("VeicoliPlugin Minecraft attivo.");
     }
 
     @Override
+    public void onDisable() {
+        for (List<UUID> wheels : vehicleWheels.values()) {
+            for (UUID wheelId : wheels) {
+                Entity wheel = Bukkit.getEntity(wheelId);
+                if (wheel != null) wheel.remove();
+            }
+        }
+        vehicleWheels.clear();
+    }
+
+    @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (command.getName().equalsIgnoreCase("garage")) {
-            return handleGarage(sender, args);
-        }
-        if (command.getName().equalsIgnoreCase("adminveicoli")) {
-            return handleAdmin(sender, args);
-        }
+        if (command.getName().equalsIgnoreCase("garage")) return handleGarage(sender, args);
+        if (command.getName().equalsIgnoreCase("adminveicoli")) return handleAdmin(sender, args);
         return false;
     }
 
@@ -79,8 +91,7 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
                 return true;
             }
         }
-        openGarageOwners.put(viewer.getUniqueId(), target.getUniqueId());
-        openGarage(viewer, target);
+        openGarage(viewer, target.getUniqueId(), target.getName());
         return true;
     }
 
@@ -98,7 +109,7 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
             sender.sendMessage(ChatColor.RED + "Giocatore non trovato o non online.");
             return true;
         }
-        String vehicleName = String.join(" ", java.util.Arrays.copyOfRange(args, 2, args.length)).trim();
+        String vehicleName = String.join(" ", Arrays.copyOfRange(args, 2, args.length)).trim();
         if (vehicleName.isEmpty()) {
             sender.sendMessage(ChatColor.RED + "Specifica il nome del veicolo.");
             return true;
@@ -136,16 +147,13 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
         saveConfig();
     }
 
-    private void openGarage(Player viewer, Player owner) {
-        List<String> vehicles = getGarage(owner.getUniqueId());
+    private void openGarage(Player viewer, UUID owner, String ownerName) {
+        List<String> vehicles = getGarage(owner);
         int size = Math.max(9, Math.min(54, ((vehicles.size() + 8) / 9) * 9));
-        GarageHolder holder = new GarageHolder(owner.getUniqueId());
-        Inventory inventory = Bukkit.createInventory(holder, size, ChatColor.DARK_GRAY + "Garage: " + owner.getName());
+        GarageHolder holder = new GarageHolder(owner);
+        Inventory inventory = Bukkit.createInventory(holder, size, ChatColor.DARK_GRAY + "Garage: " + ownerName);
         holder.inventory = inventory;
-        for (int i = 0; i < vehicles.size() && i < size; i++) {
-            ItemStack item = createGarageItem(vehicles.get(i));
-            inventory.setItem(i, item);
-        }
+        for (int i = 0; i < vehicles.size() && i < size; i++) inventory.setItem(i, createGarageItem(vehicles.get(i)));
         if (vehicles.isEmpty()) {
             ItemStack empty = new ItemStack(Material.BARRIER);
             ItemMeta meta = empty.getItemMeta();
@@ -162,7 +170,7 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
         meta.setDisplayName(ChatColor.GOLD + vehicleName);
         meta.setLore(List.of(ChatColor.GRAY + "Click sinistro: fai apparire il veicolo",
                 ChatColor.GRAY + "Lo staff può rimuoverlo con click destro"));
-        meta.setCustomModelData(getConfig().getInt("vehicles." + vehicleConfigKey(vehicleName) + ".custom-model-data", 22));
+        meta.setCustomModelData(getConfig().getInt("vehicles." + vehicleConfigKey(vehicleName) + ".body-custom-model-data", 22));
         item.setItemMeta(meta);
         return item;
     }
@@ -185,11 +193,9 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
             vehicles.remove(slot);
             setGarage(holder.owner, vehicles);
             viewer.sendMessage(ChatColor.GREEN + "Rimosso " + vehicle + " dal garage.");
-            Player owner = Bukkit.getPlayer(holder.owner);
-            if (owner != null) refreshOpenGarages(holder.owner);
-            else openGarage(viewer, Bukkit.getOfflinePlayer(holder.owner).getName() == null ? viewer : Bukkit.getPlayer(holder.owner));
+            refreshOpenGarages(holder.owner);
             if (viewer.getOpenInventory().getTopInventory().getHolder() instanceof GarageHolder) {
-                openGarage(viewer, Bukkit.getOfflinePlayer(holder.owner).getName() == null ? viewer : viewer);
+                openGarageForUuid(viewer, holder.owner);
             }
             return;
         }
@@ -201,29 +207,24 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
     }
 
     private void refreshOpenGarages(UUID ownerId) {
+        String ownerName = Bukkit.getOfflinePlayer(ownerId).getName();
+        if (ownerName == null) ownerName = "Giocatore";
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (player.getOpenInventory().getTopInventory().getHolder() instanceof GarageHolder holder
                     && holder.owner.equals(ownerId)) {
-                Player owner = Bukkit.getPlayer(ownerId);
-                if (owner != null) openGarage(player, owner);
-                else openGarageForUuid(player, ownerId);
+                openGarage(player, ownerId, ownerName);
             }
         }
     }
 
     private void openGarageForUuid(Player viewer, UUID owner) {
-        List<String> vehicles = getGarage(owner);
-        int size = Math.max(9, Math.min(54, ((vehicles.size() + 8) / 9) * 9));
-        GarageHolder holder = new GarageHolder(owner);
-        Inventory inventory = Bukkit.createInventory(holder, size, ChatColor.DARK_GRAY + "Garage");
-        holder.inventory = inventory;
-        for (int i = 0; i < vehicles.size() && i < size; i++) inventory.setItem(i, createGarageItem(vehicles.get(i)));
-        viewer.openInventory(inventory);
+        String ownerName = Bukkit.getOfflinePlayer(owner).getName();
+        openGarage(viewer, owner, ownerName == null ? "Giocatore" : ownerName);
     }
 
     private void spawnVehicle(Player player, String vehicleName) {
         Entity current = player.getVehicle();
-        if (isPluginVehicle(current)) current.remove();
+        if (isPluginVehicle(current)) removeVehicleAndWheels((Horse) current);
         Horse horse = player.getWorld().spawn(player.getLocation(), Horse.class, spawned -> {
             spawned.setAdult();
             spawned.setTamed(true);
@@ -235,19 +236,87 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
             spawned.getPersistentDataContainer().set(vehicleKey, PersistentDataType.STRING, vehicleName);
             spawned.getPersistentDataContainer().set(fuelKey, PersistentDataType.INTEGER, 100);
             spawned.getPersistentDataContainer().set(gearKey, PersistentDataType.INTEGER, 1);
-            spawned.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(0.30);
+            if (spawned.getAttribute(Attribute.MOVEMENT_SPEED) != null) {
+                spawned.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(0.30);
+            }
             HorseInventory inventory = spawned.getInventory();
             inventory.setSaddle(new ItemStack(Material.SADDLE));
             ItemStack armor = new ItemStack(Material.LEATHER_HORSE_ARMOR);
             ItemMeta meta = armor.getItemMeta();
-            meta.setCustomModelData(getConfig().getInt("vehicles." + vehicleConfigKey(vehicleName) + ".custom-model-data", 22));
+            meta.setCustomModelData(getConfig().getInt("vehicles." + vehicleConfigKey(vehicleName) + ".body-custom-model-data", 22));
             meta.setDisplayName(ChatColor.GOLD + vehicleName);
             armor.setItemMeta(meta);
             inventory.setArmor(armor);
         });
+        createWheelDisplays(horse);
         horse.addPassenger(player);
         player.closeInventory();
         player.sendMessage(ChatColor.GREEN + vehicleName + " è pronto. Premi F per cambiare marcia.");
+    }
+
+    private void createWheelDisplays(Horse horse) {
+        removeWheelDisplays(horse.getUniqueId());
+        int wheelCmd = getConfig().getInt("vehicles." + vehicleConfigKey(
+                horse.getPersistentDataContainer().getOrDefault(vehicleKey, PersistentDataType.STRING, "AMG Cross"))
+                + ".wheel-custom-model-data", 240);
+        ItemStack wheelItem = new ItemStack(Material.LEATHER_HORSE_ARMOR);
+        ItemMeta meta = wheelItem.getItemMeta();
+        meta.setCustomModelData(wheelCmd);
+        meta.setDisplayName(ChatColor.GOLD + "Ruota veicolo");
+        wheelItem.setItemMeta(meta);
+
+        double offset = getConfig().getDouble("vehicles.amg-cross.wheel-side-offset", 0.42);
+        List<UUID> wheels = new ArrayList<>(2);
+        for (int side : new int[]{-1, 1}) {
+            ItemDisplay display = horse.getWorld().spawn(horse.getLocation(), ItemDisplay.class, spawned -> {
+                spawned.setItemStack(wheelItem);
+                spawned.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
+                spawned.setGravity(false);
+                spawned.setInvulnerable(true);
+                spawned.setPersistent(false);
+                spawned.getPersistentDataContainer().set(wheelKey, PersistentDataType.BYTE, (byte) 1);
+                spawned.getPersistentDataContainer().set(wheelParentKey, PersistentDataType.STRING, horse.getUniqueId().toString());
+            });
+            wheels.add(display.getUniqueId());
+        }
+        vehicleWheels.put(horse.getUniqueId(), wheels);
+        updateWheelPositions(horse, offset);
+    }
+
+    private void updateWheelPositions(Horse horse, double offset) {
+        List<UUID> wheels = vehicleWheels.get(horse.getUniqueId());
+        if (wheels == null || wheels.size() != 2) {
+            createWheelDisplays(horse);
+            return;
+        }
+        float yaw = horse.getLocation().getYaw();
+        double radians = Math.toRadians(yaw);
+        double rightX = Math.cos(radians);
+        double rightZ = -Math.sin(radians);
+        double[] sides = {-1.0, 1.0};
+        for (int index = 0; index < 2; index++) {
+            Entity wheel = Bukkit.getEntity(wheels.get(index));
+            if (!(wheel instanceof ItemDisplay display) || !display.isValid()) {
+                createWheelDisplays(horse);
+                return;
+            }
+            double side = sides[index] * offset;
+            display.teleport(horse.getLocation().clone().add(rightX * side, -0.55, rightZ * side));
+        }
+    }
+
+    private void removeWheelDisplays(UUID horseId) {
+        List<UUID> wheels = vehicleWheels.remove(horseId);
+        if (wheels == null) return;
+        for (UUID wheelId : wheels) {
+            Entity wheel = Bukkit.getEntity(wheelId);
+            if (wheel != null) wheel.remove();
+        }
+    }
+
+    private void removeVehicleAndWheels(Horse horse) {
+        removeWheelDisplays(horse.getUniqueId());
+        horse.remove();
     }
 
     private boolean isPluginVehicle(Entity entity) {
@@ -268,7 +337,8 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        openGarageOwners.remove(event.getPlayer().getUniqueId());
+        Entity vehicle = event.getPlayer().getVehicle();
+        if (isPluginVehicle(vehicle)) removeVehicleAndWheels((Horse) vehicle);
     }
 
     private void startVehicleTask() {
@@ -281,6 +351,7 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
                     Horse horse = (Horse) entity;
                     int gear = horse.getPersistentDataContainer().getOrDefault(gearKey, PersistentDataType.INTEGER, 1);
                     int fuel = horse.getPersistentDataContainer().getOrDefault(fuelKey, PersistentDataType.INTEGER, 100);
+                    updateWheelPositions(horse, getConfig().getDouble("vehicles.amg-cross.wheel-side-offset", 0.42));
                     Vector velocity = horse.getVelocity();
                     double speedKmh = velocity.clone().setY(0).length() * 72.0;
                     double maxKmh = GEAR_LIMITS[Math.max(0, Math.min(4, gear - 1))];
@@ -313,6 +384,11 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
 
     private String vehicleConfigKey(String vehicleName) {
         return vehicleName.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
+    }
+
+    private void openGarageForUuid(Player viewer, UUID owner) {
+        String ownerName = Bukkit.getOfflinePlayer(owner).getName();
+        openGarage(viewer, owner, ownerName == null ? "Giocatore" : ownerName);
     }
 
     private static final class GarageHolder implements InventoryHolder {

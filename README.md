@@ -1,25 +1,22 @@
 # Veicoli plugin (Minecraft)
 
-Plugin **Paper/Spigot Java** per server Minecraft. I file Lua/HTML/FiveM presenti nella cronologia del repository sono un tentativo precedente errato e non fanno parte del plugin Minecraft: il server carica il JAR creato da Maven.
+Plugin **Paper/Spigot Java** per Minecraft/Paper 1.21.4 (Java 21).
 
-## Requisiti
-- Minecraft/Paper 1.21.4
-- Java 21
-- Maven 3.9+
-- Resource pack con il modello dell'AMG Cross associato all'oggetto `LEATHER_HORSE_ARMOR` con CustomModelData `22`.
-
-## Compilazione e installazione
-1. Compila con `mvn package`.
-2. Copia `target/veicoliplugin-1.0.0.jar` nella cartella `plugins/` del server.
-3. Avvia il server. Verrà generato `plugins/VeicoliPlugin/config.yml`.
-4. Assegna agli staff il permesso `veicoliplugin.admin` (è `op` per default).
+## Build e installazione
+1. Esegui `mvn package` con Java 21 e Maven 3.9+.
+2. Copia `target/veicoliplugin-1.0.0.jar` in `plugins/`.
+3. Avvia il server. La configurazione viene creata in `plugins/VeicoliPlugin/config.yml`.
+4. Permesso staff: `veicoliplugin.admin` (default: OP).
 
 ## Comandi
-- `/adminveicoli give <nick> <nome veicolo>` — assegna un veicolo, per esempio `/adminveicoli give Steve AMG Cross`.
-- `/adminveicoli remove <nick> <nome veicolo>` — rimuove quel veicolo dal garage.
-- `/garage` — apre il tuo garage.
-- `/garage <nick>` — lo staff apre il garage di un giocatore; clic sinistro visualizza, clic destro rimuove.
+- `/adminveicoli give <nick> <nome veicolo>` — assegna un mezzo.
+- `/adminveicoli remove <nick> <nome veicolo>` — lo rimuove dal garage.
+- `/garage` — apre il garage personale; clic sinistro su un veicolo per spawnarlo.
+- `/garage <nick>` — lo staff apre il garage del giocatore; clic destro rimuove il mezzo.
 
-Nel garage personale, clic sinistro su un veicolo lo fa apparire e ci fa salire. La marcia cambia con **F** (evento cambio mano), da 1 a 5. L'HUD è mostrato nella action bar con velocità, carburante e marcia. I limiti delle marce sono 15, 30, 55, 75 e 110 km/h.
+## AMG Cross e resource pack
+Il veicolo è un cavallo sellato con una bardatura di cuoio personalizzata. L'AMG Cross usa `LEATHER_HORSE_ARMOR` con CustomModelData **22** per la carrozzeria. Le **due ruote** sono due entità `ItemDisplay` separate, ciascuna con `LEATHER_HORSE_ARMOR` e CustomModelData **240**; il plugin le mantiene ai lati del veicolo mentre si muove.
 
-Il veicolo è implementato come cavallo sellato con bardatura personalizzata: il resource pack è necessario per renderlo come l'AMG Cross. Le ruote e il loro modello possono essere aggiunti quando sarà disponibile lo screenshot promesso.
+Il resource pack deve contenere i modelli corrispondenti ai CMD 22 e 240. La posizione laterale delle ruote si regola in `config.yml` con `vehicles.amg-cross.wheel-side-offset` (default `0.42` blocchi). La posizione verticale è impostata a `-0.55` rispetto al centro del cavallo e può richiedere regolazione in base al modello del resource pack.
+
+La action bar mostra velocità, carburante e marcia. Premi **F** (cambio mano) per passare alla marcia successiva; i limiti impostati sono 15, 30, 55, 75 e 110 km/h.
