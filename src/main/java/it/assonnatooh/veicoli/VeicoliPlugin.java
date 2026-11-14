@@ -175,7 +175,7 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
                 ChatColor.GRAY + "Lo staff può rimuoverlo con click destro"
         ));
         meta.setCustomModelData(getConfig().getInt(
-                "vehicles." + vehicleConfigKey(vehicleName) + ".body-custom-model-data", 22));
+                "vehicles." + vehicleConfigKey(vehicleName) + ".body-custom-model-data", 20));
         item.setItemMeta(meta);
         return item;
     }
@@ -236,6 +236,8 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
             spawned.setOwner(player);
             spawned.setInvulnerable(true);
             spawned.setPersistent(true);
+            // Il cavallo resta solo come supporto invisibile per movimento e guida.
+            spawned.setInvisible(true);
             spawned.setCustomName(ChatColor.GOLD + vehicleName);
             spawned.setCustomNameVisible(false);
             spawned.getPersistentDataContainer().set(vehicleKey, PersistentDataType.STRING, vehicleName);
@@ -249,7 +251,7 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
             ItemStack armor = new ItemStack(Material.LEATHER_HORSE_ARMOR);
             ItemMeta meta = armor.getItemMeta();
             meta.setCustomModelData(getConfig().getInt(
-                    "vehicles." + vehicleConfigKey(vehicleName) + ".body-custom-model-data", 22));
+                    "vehicles." + vehicleConfigKey(vehicleName) + ".body-custom-model-data", 20));
             meta.setDisplayName(ChatColor.GOLD + vehicleName);
             armor.setItemMeta(meta);
             inventory.setArmor(armor);
@@ -272,28 +274,31 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
         meta.setDisplayName(ChatColor.GOLD + "Ruota veicolo");
         wheelItem.setItemMeta(meta);
 
-        double offset = getConfig().getDouble("vehicles.amg-cross.wheel-side-offset", 0.42);
-        List<UUID> wheels = new ArrayList<>(2);
+        double sideOffset = getConfig().getDouble("vehicles.amg-cross.wheel-side-offset", 0.42);
+        double axleOffset = getConfig().getDouble("vehicles.amg-cross.wheel-axle-offset", 0.48);
+        List<UUID> wheels = new ArrayList<>(4);
         for (int side : new int[]{-1, 1}) {
-            ItemDisplay display = horse.getWorld().spawn(horse.getLocation(), ItemDisplay.class, spawned -> {
-                spawned.setItemStack(wheelItem);
-                spawned.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
-                spawned.setGravity(false);
-                spawned.setInvulnerable(true);
-                spawned.setPersistent(false);
-                spawned.getPersistentDataContainer().set(wheelKey, PersistentDataType.BYTE, (byte) 1);
-                spawned.getPersistentDataContainer().set(wheelParentKey, PersistentDataType.STRING,
-                        horse.getUniqueId().toString());
-            });
-            wheels.add(display.getUniqueId());
+            for (int axle : new int[]{-1, 1}) {
+                ItemDisplay display = horse.getWorld().spawn(horse.getLocation(), ItemDisplay.class, spawned -> {
+                    spawned.setItemStack(wheelItem);
+                    spawned.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
+                    spawned.setGravity(false);
+                    spawned.setInvulnerable(true);
+                    spawned.setPersistent(false);
+                    spawned.getPersistentDataContainer().set(wheelKey, PersistentDataType.BYTE, (byte) 1);
+                    spawned.getPersistentDataContainer().set(wheelParentKey, PersistentDataType.STRING,
+                            horse.getUniqueId().toString());
+                });
+                wheels.add(display.getUniqueId());
+            }
         }
         vehicleWheels.put(horse.getUniqueId(), wheels);
-        updateWheelPositions(horse, offset);
+        updateWheelPositions(horse, sideOffset, axleOffset);
     }
 
-    private void updateWheelPositions(Horse horse, double offset) {
+    private void updateWheelPositions(Horse horse, double sideOffset, double axleOffset) {
         List<UUID> wheels = vehicleWheels.get(horse.getUniqueId());
-        if (wheels == null || wheels.size() != 2) {
+        if (wheels == null || wheels.size() != 4) {
             createWheelDisplays(horse);
             return;
         }
@@ -301,15 +306,23 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
         double radians = Math.toRadians(yaw);
         double rightX = Math.cos(radians);
         double rightZ = -Math.sin(radians);
-        double[] sides = {-1.0, 1.0};
-        for (int index = 0; index < 2; index++) {
-            Entity wheel = Bukkit.getEntity(wheels.get(index));
-            if (!(wheel instanceof ItemDisplay display) || !display.isValid()) {
-                createWheelDisplays(horse);
-                return;
+        double forwardX = -Math.sin(radians);
+        double forwardZ = Math.cos(radians);
+        int index = 0;
+        for (int side : new int[]{-1, 1}) {
+            for (int axle : new int[]{-1, 1}) {
+                Entity wheel = Bukkit.getEntity(wheels.get(index++));
+                if (!(wheel instanceof ItemDisplay display) || !display.isValid()) {
+                    createWheelDisplays(horse);
+                    return;
+                }
+                double sideDistance = side * sideOffset;
+                double axleDistance = axle * axleOffset;
+                display.teleport(horse.getLocation().clone().add(
+                        rightX * sideDistance + forwardX * axleDistance,
+                        -0.55,
+                        rightZ * sideDistance + forwardZ * axleDistance));
             }
-            double side = sides[index] * offset;
-            display.teleport(horse.getLocation().clone().add(rightX * side, -0.55, rightZ * side));
         }
     }
 
@@ -360,7 +373,9 @@ public final class VeicoliPlugin extends JavaPlugin implements Listener {
                     Horse horse = (Horse) entity;
                     int gear = horse.getPersistentDataContainer().getOrDefault(gearKey, PersistentDataType.INTEGER, 1);
                     int fuel = horse.getPersistentDataContainer().getOrDefault(fuelKey, PersistentDataType.INTEGER, 100);
-                    updateWheelPositions(horse, getConfig().getDouble("vehicles.amg-cross.wheel-side-offset", 0.42));
+                    updateWheelPositions(horse,
+                            getConfig().getDouble("vehicles.amg-cross.wheel-side-offset", 0.42),
+                            getConfig().getDouble("vehicles.amg-cross.wheel-axle-offset", 0.48));
                     Vector velocity = horse.getVelocity();
                     double speedKmh = velocity.clone().setY(0).length() * 72.0;
                     double maxKmh = GEAR_LIMITS[Math.max(0, Math.min(4, gear - 1))];

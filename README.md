@@ -15,6 +15,6 @@ Plugin **Paper per Minecraft 1.21.8**, compilato con Java 21.
 - `/garage <nick>` — lo staff apre il garage del giocatore; clic destro rimuove il mezzo.
 
 ## AMG Cross e resource pack
-Il veicolo è un cavallo sellato con una bardatura di cuoio personalizzata. L'AMG Cross usa `LEATHER_HORSE_ARMOR` con CustomModelData **22** per la carrozzeria. Le **due ruote** sono due entità `ItemDisplay` separate, ciascuna con `LEATHER_HORSE_ARMOR` e CustomModelData **240**; il plugin le mantiene ai lati del veicolo mentre si muove.
+Il cavallo è soltanto un supporto invisibile per guidare: a schermo non deve comparire. La carrozzeria usa `LEATHER_HORSE_ARMOR` con CustomModelData **20**; le ruote decorative usano il CMD **240** e vengono posizionate ai quattro angoli del mezzo. Il resource pack deve fornire i modelli corrispondenti.
 
-Il resource pack deve fornire i modelli corrispondenti ai CMD 22 e 240. La distanza laterale delle ruote si regola in `config.yml` con `vehicles.amg-cross.wheel-side-offset` (default `0.42` blocchi); la posizione verticale può richiedere regolazione in base al modello del resource pack.
+Le posizioni si regolano in `config.yml` con `vehicles.amg-cross.wheel-side-offset` (larghezza) e `vehicles.amg-cross.wheel-axle-offset` (distanza tra asse anteriore e posteriore). Se il server ha già creato il file di configurazione, aggiorna manualmente il CMD carrozzeria da 22 a 20 e riavvia il server.

@@ -1,7 +1,9 @@
 vehicles:
   amg-cross:
-    body-custom-model-data: 22
+    body-custom-model-data: 20
     wheel-custom-model-data: 240
-    # Distanza laterale delle due ruote decorative (ItemDisplay), regolabile dopo il test col resource pack.
+    # Distanza laterale delle ruote decorative (blocchi).
     wheel-side-offset: 0.42
+    # Distanza tra asse anteriore e posteriore, per lato (blocchi).
+    wheel-axle-offset: 0.48
 # Il garage viene salvato automaticamente per UUID giocatore.
